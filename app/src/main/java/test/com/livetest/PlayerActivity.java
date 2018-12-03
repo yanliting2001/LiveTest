@@ -2,6 +2,7 @@ package test.com.livetest;
 
 import android.app.Activity;
 import android.os.Bundle;
+import android.os.Environment;
 import android.support.annotation.Nullable;
 import android.text.TextUtils;
 import android.view.View;
@@ -16,7 +17,7 @@ import io.vov.vitamio.widget.VideoView;
  */
 
 public class PlayerActivity extends Activity implements View.OnClickListener {
-    private String path = "";
+    private String path = Environment.getExternalStorageDirectory().getPath() + "/test.mp4";
     private VideoView mVideoView;
     private EditText mEditText;
     private Button mStartBtn;
@@ -28,6 +29,11 @@ public class PlayerActivity extends Activity implements View.OnClickListener {
         setContentView(R.layout.activity_video_player);
         if (!LibsChecker.checkVitamioLibs(this))
             return;
+        Bundle bundle = getIntent().getExtras();
+        String playerType = bundle.getString("type");
+        if (playerType.equals("playLive")) {
+            path = Environment.getExternalStorageDirectory() + "/Android/data/test.com.livetest/test.mp4";
+        }
         mEditText = (EditText) findViewById(R.id.url);
         mVideoView = (VideoView) findViewById(R.id.surface_view);
         mStartBtn = (Button) findViewById(R.id.start);
@@ -40,7 +46,7 @@ public class PlayerActivity extends Activity implements View.OnClickListener {
     public void onClick(View v) {
         switch (v.getId()) {
             case R.id.start:
-                path = mEditText.getText().toString();
+                mEditText.setText(path);
                 if (!TextUtils.isEmpty(path)) {
                     mVideoView.setVideoPath(path);
                 }

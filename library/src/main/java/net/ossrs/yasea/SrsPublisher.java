@@ -1,5 +1,6 @@
 package net.ossrs.yasea;
 
+import android.hardware.Camera;
 import android.media.AudioRecord;
 import android.media.audiofx.AcousticEchoCanceler;
 import android.media.audiofx.AutomaticGainControl;
@@ -307,5 +308,9 @@ public class SrsPublisher {
         if (mMp4Muxer != null) {
             mEncoder.setMp4Muxer(mMp4Muxer);
         }
+    }
+
+    public Camera getCamera() {
+        return mCameraView.getCamera();
     }
 }

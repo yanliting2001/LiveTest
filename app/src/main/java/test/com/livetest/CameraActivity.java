@@ -3,7 +3,9 @@ package test.com.livetest;
 import android.app.Activity;
 import android.content.res.Configuration;
 import android.hardware.Camera;
+import android.media.MediaRecorder;
 import android.os.Bundle;
+import android.os.Environment;
 import android.support.annotation.Nullable;
 import android.text.TextUtils;
 import android.view.View;
@@ -27,15 +29,19 @@ import java.net.SocketException;
  * Created by Sikang on 2017/5/2.
  */
 
-public class CameraActivity extends Activity implements SrsEncodeHandler.SrsEncodeListener, RtmpHandler.RtmpListener, SrsRecordHandler.SrsRecordListener, View.OnClickListener {
+public class CameraActivity extends Activity implements SrsEncodeHandler.SrsEncodeListener, RtmpHandler.RtmpListener, SrsRecordHandler.SrsRecordListener, View.OnClickListener, MediaRecorder.OnInfoListener {
     private static final String TAG = "CameraActivity";
 
     private Button mPublishBtn;
+    private Button mRecordBtn;
     private Button mCameraSwitchBtn;
     private Button mEncoderBtn;
     private EditText mRempUrlEt;
     private SrsPublisher mPublisher;
     private String rtmpUrl;
+    private String recPath = Environment.getExternalStorageDirectory().getPath() + "/test.mp4";
+    private Camera mCamera;
+    private MediaRecorder mMediaRecorder;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -44,10 +50,12 @@ public class CameraActivity extends Activity implements SrsEncodeHandler.SrsEnco
         setContentView(R.layout.activity_camera);
 
         mPublishBtn = (Button) findViewById(R.id.publish);
+        mRecordBtn = (Button) findViewById(R.id.record);
         mCameraSwitchBtn = (Button) findViewById(R.id.swCam);
         mEncoderBtn = (Button) findViewById(R.id.swEnc);
         mRempUrlEt = (EditText) findViewById(R.id.url);
         mPublishBtn.setOnClickListener(this);
+        mRecordBtn.setOnClickListener(this);
         mCameraSwitchBtn.setOnClickListener(this);
         mEncoderBtn.setOnClickListener(this);
 
@@ -62,9 +70,10 @@ public class CameraActivity extends Activity implements SrsEncodeHandler.SrsEnco
         //推流分辨率
         mPublisher.setOutputResolution(720, 1280);
         //传输率
-        mPublisher.setVideoHDMode();
+//        mPublisher.setVideoHDMode();
+        mPublisher.setVideoSmoothMode();
         //开启美颜（其他滤镜效果在MagicFilterType中查看）
-        mPublisher.switchCameraFilter(MagicFilterType.BEAUTY);
+//        mPublisher.switchCameraFilter(MagicFilterType.BEAUTY);
         //打开摄像头，开始预览（未推流）
         mPublisher.startCamera();
     }
@@ -96,6 +105,16 @@ public class CameraActivity extends Activity implements SrsEncodeHandler.SrsEnco
                     mEncoderBtn.setEnabled(true);
                 }
                 break;
+            //录制/结束
+            case R.id.record:
+                if (mRecordBtn.getText().toString().contentEquals("录制")) {
+                    startRecordVideo();
+                    mRecordBtn.setText("结束");
+                } else if (mRecordBtn.getText().toString().contentEquals("结束")) {
+                    stopRecordVideo();
+                    mRecordBtn.setText("录制");
+                }
+                break;
             //切换摄像头
             case R.id.swCam:
                 mPublisher.switchCameraFace((mPublisher.getCamraId() + 1) % Camera.getNumberOfCameras());
@@ -123,6 +142,10 @@ public class CameraActivity extends Activity implements SrsEncodeHandler.SrsEnco
     protected void onPause() {
         super.onPause();
         mPublisher.pauseRecord();
+        if (mRecordBtn.getText().toString().contentEquals("结束")) {
+            stopRecordVideo();
+            mRecordBtn.setText("录制");
+        }
     }
 
     @Override
@@ -130,6 +153,7 @@ public class CameraActivity extends Activity implements SrsEncodeHandler.SrsEnco
         super.onDestroy();
         mPublisher.stopPublish();
         mPublisher.stopRecord();
+        stopRecordVideo();
     }
 
     @Override
@@ -265,4 +289,61 @@ public class CameraActivity extends Activity implements SrsEncodeHandler.SrsEnco
         handleException(e);
     }
 
+    @Override
+    public void onInfo(MediaRecorder mediaRecorder, int what, int extra) {
+        if (what == MediaRecorder.MEDIA_RECORDER_INFO_MAX_DURATION_REACHED) {
+            Toast.makeText(getApplicationContext(), "Maximum Filesize Reached", Toast.LENGTH_SHORT).show();
+            stopRecordVideo();
+        }
+    }
+
+    private void startRecordVideo() {
+        mCamera = mPublisher.getCamera();
+        configureMediaRecorder();
+        Toast.makeText(getApplicationContext(), "Recording file", Toast.LENGTH_SHORT).show();
+    }
+
+    private void stopRecordVideo() {
+        if (mMediaRecorder != null) {
+            mMediaRecorder.stop();
+            mMediaRecorder.reset();
+            mMediaRecorder.release();
+            mMediaRecorder = null;
+            Toast.makeText(getApplicationContext(), "MP4 file saved", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void configureMediaRecorder() {
+        mMediaRecorder = new MediaRecorder();
+        mMediaRecorder.setOnInfoListener(this);
+        try {
+
+            // Step 1: Unlock and set camera to MediaRecorder
+            mCamera.unlock();
+            mMediaRecorder.setCamera(mCamera);
+
+            // Step 2: Set Sources
+            mMediaRecorder.setVideoSource(MediaRecorder.VideoSource.CAMERA);
+
+            // Step 3: Set a Camera Parameters
+            mMediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
+            /* Fixed video Size: 640 * 480 */
+            mMediaRecorder.setVideoSize(640, 480);
+            /* Video Frame Rate: 30*/
+            mMediaRecorder.setVideoFrameRate(30);
+            /* Encoding bit rate: 1 * 1024 * 1024 */
+            mMediaRecorder.setVideoEncodingBitRate(500 * 1024);
+            mMediaRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
+
+            // Step 4: Set output file
+            mMediaRecorder.setOutputFile(recPath);
+
+            // Set MediaRecorder Max Duration (ms)
+            mMediaRecorder.setMaxDuration(60 * 1000);
+            mMediaRecorder.prepare();
+            mMediaRecorder.start();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 }

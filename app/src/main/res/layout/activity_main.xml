@@ -20,5 +20,13 @@
         android:padding="10dp"
         android:text="观看直播（播放rtmp流）" />
 
+    <Button
+        android:id="@+id/play_video_btn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="20dp"
+        android:padding="10dp"
+        android:text="观看录像 (播放本地视频)"/>
+
 
 </LinearLayout>

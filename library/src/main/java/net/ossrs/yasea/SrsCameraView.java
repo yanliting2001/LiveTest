@@ -327,6 +327,10 @@ public class SrsCameraView extends GLSurfaceView implements GLSurfaceView.Render
         }
     }
 
+    public Camera getCamera() {
+        return mCamera;
+    }
+
     private Camera openCamera() {
         Camera camera;
         if (mCamId < 0) {
