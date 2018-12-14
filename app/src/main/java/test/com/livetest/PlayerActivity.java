@@ -17,7 +17,7 @@ import io.vov.vitamio.widget.VideoView;
  */
 
 public class PlayerActivity extends Activity implements View.OnClickListener {
-    private String path = Environment.getExternalStorageDirectory().getPath() + "/test.mp4";
+    private String path = Environment.getExternalStorageDirectory().getPath() + "/LiveTest.mp4";
     private VideoView mVideoView;
     private EditText mEditText;
     private Button mStartBtn;

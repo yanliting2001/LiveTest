@@ -6,6 +6,8 @@ import android.hardware.Camera;
 import android.media.MediaRecorder;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Message;
 import android.support.annotation.Nullable;
 import android.text.TextUtils;
 import android.view.View;
@@ -14,6 +16,15 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
 
+import com.alibaba.sdk.android.oss.ClientConfiguration;
+import com.alibaba.sdk.android.oss.ClientException;
+import com.alibaba.sdk.android.oss.OSS;
+import com.alibaba.sdk.android.oss.OSSClient;
+import com.alibaba.sdk.android.oss.ServiceException;
+import com.alibaba.sdk.android.oss.common.auth.OSSCredentialProvider;
+import com.alibaba.sdk.android.oss.common.auth.OSSPlainTextAKSKCredentialProvider;
+import com.alibaba.sdk.android.oss.model.PutObjectRequest;
+import com.alibaba.sdk.android.oss.model.PutObjectResult;
 import com.github.faucamp.simplertmp.RtmpHandler;
 import com.seu.magicfilter.utils.MagicFilterType;
 
@@ -24,6 +35,9 @@ import net.ossrs.yasea.SrsRecordHandler;
 
 import java.io.IOException;
 import java.net.SocketException;
+import java.util.List;
+
+import io.vov.vitamio.utils.Log;
 
 /**
  * Created by Sikang on 2017/5/2.
@@ -37,11 +51,25 @@ public class CameraActivity extends Activity implements SrsEncodeHandler.SrsEnco
     private Button mCameraSwitchBtn;
     private Button mEncoderBtn;
     private EditText mRempUrlEt;
+    private SrsCameraView mCameraView;
     private SrsPublisher mPublisher;
     private String rtmpUrl;
     private String recPath = Environment.getExternalStorageDirectory().getPath() + "/test.mp4";
     private Camera mCamera;
     private MediaRecorder mMediaRecorder;
+
+    private final int UPLOAD_FILE = 100002;
+
+    private Handler mHandler = new Handler() {
+        public void handleMessage(Message paramMessage) {
+            switch (paramMessage.what) {
+                case UPLOAD_FILE:
+                    Toast.makeText(getApplicationContext(), "Upload file now", Toast.LENGTH_SHORT).show();
+                    new Thread(runnableInit).start();
+                    break;
+            }
+        }
+    };
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -59,7 +87,8 @@ public class CameraActivity extends Activity implements SrsEncodeHandler.SrsEnco
         mCameraSwitchBtn.setOnClickListener(this);
         mEncoderBtn.setOnClickListener(this);
 
-        mPublisher = new SrsPublisher((SrsCameraView) findViewById(R.id.glsurfaceview_camera));
+        mCameraView = (SrsCameraView) findViewById(R.id.glsurfaceview_camera);
+        mPublisher = new SrsPublisher(mCameraView);
         //编码状态回调
         mPublisher.setEncodeHandler(new SrsEncodeHandler(this));
         mPublisher.setRecordHandler(new SrsRecordHandler(this));
@@ -68,14 +97,22 @@ public class CameraActivity extends Activity implements SrsEncodeHandler.SrsEnco
         //预览分辨率
         mPublisher.setPreviewResolution(1280, 720);
         //推流分辨率
-        mPublisher.setOutputResolution(720, 1280);
+        mPublisher.setOutputResolution(1280, 720);
         //传输率
 //        mPublisher.setVideoHDMode();
         mPublisher.setVideoSmoothMode();
         //开启美颜（其他滤镜效果在MagicFilterType中查看）
 //        mPublisher.switchCameraFilter(MagicFilterType.BEAUTY);
         //打开摄像头，开始预览（未推流）
+//        mPublisher.startCamera();
+        mCameraView.setPreviewOrientation(0);
         mPublisher.startCamera();
+
+        mCamera = mPublisher.getCamera();
+        List<Camera.Size> sizeList = mCamera.getParameters().getSupportedVideoSizes();
+        for (int i = 0; i < sizeList.size(); i++) {
+            System.out.println("Supported video sizes: width is " + sizeList.get(i).width + ", height is " + sizeList.get(i).height);
+        }
     }
 
     @Override
@@ -89,7 +126,7 @@ public class CameraActivity extends Activity implements SrsEncodeHandler.SrsEnco
                         Toast.makeText(getApplicationContext(), "地址不能为空！", Toast.LENGTH_SHORT).show();
                     }
                     mPublisher.startPublish(rtmpUrl);
-                    mPublisher.startCamera();
+//                    mPublisher.startCamera();
 
                     if (mEncoderBtn.getText().toString().contentEquals("软编码")) {
                         Toast.makeText(getApplicationContext(), "当前使用硬编码", Toast.LENGTH_SHORT).show();
@@ -310,6 +347,7 @@ public class CameraActivity extends Activity implements SrsEncodeHandler.SrsEnco
             mMediaRecorder.release();
             mMediaRecorder = null;
             Toast.makeText(getApplicationContext(), "MP4 file saved", Toast.LENGTH_SHORT).show();
+            mHandler.sendEmptyMessageDelayed(UPLOAD_FILE, 1000);
         }
     }
 
@@ -344,6 +382,50 @@ public class CameraActivity extends Activity implements SrsEncodeHandler.SrsEnco
             mMediaRecorder.start();
         } catch (IOException e) {
             e.printStackTrace();
+        }
+    }
+
+    Runnable runnableInit = new Runnable() {
+        @Override
+        public void run() {
+            OSSInit();
+        }
+    };
+
+    private void OSSInit() {
+        String endPoint = "http://oss-cn-shenzhen.aliyuncs.com";
+        String accessKeyId = "LTAIvIhIJ3JNzkRl";
+        String accessKeySecret = "7aZBMS42QqguHTF5cq5uPD7tle8dK3";
+
+        OSSCredentialProvider credentialProvider = new OSSPlainTextAKSKCredentialProvider(accessKeyId, accessKeySecret);
+        ClientConfiguration conf = new ClientConfiguration();
+        conf.setConnectionTimeout(15 * 1000);   // 连接超时，默认15秒
+        conf.setSocketTimeout(15 * 1000);   // socket超时，默认15秒
+        conf.setMaxConcurrentRequest(5);    // 最大并发请求数，默认5个
+        conf.setMaxErrorRetry(2);   // 失败后最大重试次数，默认2次
+        OSS oss = new OSSClient(getApplicationContext(), endPoint, credentialProvider, conf);
+        System.out.println("Upload File");
+        uploadFile(oss);
+    }
+
+    private void uploadFile(OSS oss) {
+        // 上传文件
+        Log.d("Upload", "Start");
+        PutObjectRequest put = new PutObjectRequest("gadsp", "datas/soft/file", recPath);
+        try {
+            PutObjectResult putObjectResult = oss.putObject(put);
+            Log.d("PutObject", "Upload Success");
+            Log.d("ETag", putObjectResult.getETag());
+            Log.d("RequestId", putObjectResult.getRequestId());
+        } catch (ClientException e) {
+            // 本地异常如网络异常等
+            e.printStackTrace();
+        } catch (ServiceException e) {
+            // 服务异常
+            Log.e("RequestId", e.getRequestId());
+            Log.e("ErrorCode", e.getErrorCode());
+            Log.e("HostId", e.getHostId());
+            Log.e("RawMessage", e.getRawMessage());
         }
     }
 }
