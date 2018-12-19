@@ -2,6 +2,7 @@ package net.ossrs.yasea;
 
 import android.hardware.Camera;
 import android.media.AudioRecord;
+import android.media.MediaCodec;
 import android.media.audiofx.AcousticEchoCanceler;
 import android.media.audiofx.AutomaticGainControl;
 
@@ -224,6 +225,10 @@ public class SrsPublisher {
 
     public int getCamraId() {
         return mCameraView.getCameraId();
+    }
+
+    public MediaCodec getVencoder() {
+        return mEncoder.getVencoder();
     }
 
     public void setPreviewResolution(int width, int height) {

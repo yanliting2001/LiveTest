@@ -28,5 +28,13 @@
         android:padding="10dp"
         android:text="观看录像 (播放本地视频)"/>
 
+    <Button
+        android:id="@+id/video_record"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="20dp"
+        android:padding="10dp"
+        android:text="录像"/>
+
 
 </LinearLayout>

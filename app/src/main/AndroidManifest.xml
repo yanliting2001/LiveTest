@@ -47,6 +47,8 @@
         <activity
             android:name=".PlayerActivity"
             android:screenOrientation="portrait" />
+        <activity android:name=".RecordActivity"
+            android:screenOrientation="landscape"/>
 
     </application>
 

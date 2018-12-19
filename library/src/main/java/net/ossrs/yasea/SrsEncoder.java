@@ -186,9 +186,9 @@ public class SrsEncoder {
 
         if (vencoder != null) {
             Log.i(TAG, "stop vencoder");
-            vencoder.stop();
-            vencoder.release();
-            vencoder = null;
+//            vencoder.stop();
+//            vencoder.release();
+//            vencoder = null;
         }
     }
 
@@ -271,6 +271,10 @@ public class SrsEncoder {
 
     public int getOutputHeight() {
         return vOutHeight;
+    }
+
+    public MediaCodec getVencoder() {
+        return vencoder;
     }
 
     public void setScreenOrientation(int orientation) {

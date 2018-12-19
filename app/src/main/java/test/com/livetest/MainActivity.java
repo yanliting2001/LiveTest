@@ -10,6 +10,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private Button mPushBtn;
     private Button mPlayBtn;
     private Button mLocalBtn;
+    private Button mRecordBtn;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -18,9 +19,11 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         mPushBtn = (Button) findViewById(R.id.push_stream_btn);
         mPlayBtn = (Button) findViewById(R.id.play_stream_btn);
         mLocalBtn = (Button) findViewById(R.id.play_video_btn);
+        mRecordBtn = (Button) findViewById(R.id.video_record);
         mPushBtn.setOnClickListener(this);
         mPlayBtn.setOnClickListener(this);
         mLocalBtn.setOnClickListener(this);
+        mRecordBtn.setOnClickListener(this);
     }
 
     @Override
@@ -44,6 +47,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 Intent intent3 = new Intent(this,PlayerActivity.class);
                 intent3.putExtras(bundle);
                 startActivity(intent3);
+                break;
+            case R.id.video_record:
+                bundle.putString("type", "record");
+                Intent intent4 = new Intent(this,RecordActivity.class);
+                intent4.putExtras(bundle);
+                startActivity(intent4);
                 break;
         }
     }
