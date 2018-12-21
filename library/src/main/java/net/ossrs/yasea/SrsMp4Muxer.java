@@ -290,6 +290,9 @@ public class SrsMp4Muxer {
                         h264_sps = ByteBuffer.wrap(sps);
                         spsList.clear();
                         spsList.add(sps);
+                        if (!spsList.isEmpty() && !ppsList.isEmpty()) {
+                            mp4Movie.addTrack(videoFormat, false);
+                        }
                     }
                     continue;
                 }
@@ -301,6 +304,9 @@ public class SrsMp4Muxer {
                         h264_pps = ByteBuffer.wrap(pps);
                         ppsList.clear();
                         ppsList.add(pps);
+                        if (!spsList.isEmpty() && !ppsList.isEmpty()) {
+                            mp4Movie.addTrack(videoFormat, false);
+                        }
                     }
                     continue;
                 }
@@ -792,10 +798,11 @@ public class SrsMp4Muxer {
 
     private void writeSampleData(ByteBuffer byteBuf, MediaCodec.BufferInfo bi, boolean isAudio) {
         int trackIndex = isAudio ? AUDIO_TRACK : VIDEO_TRACK;
+        if(isAudio) return;
         if (!mp4Movie.getTracks().containsKey(trackIndex)) {
             return;
         }
-
+        //Log.i(TAG, "writeSampleData  trackIndex=" + trackIndex );
         try {
             if (mdat.first) {
                 mdat.setContentSize(0);

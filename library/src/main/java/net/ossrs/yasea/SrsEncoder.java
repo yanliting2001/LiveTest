@@ -88,7 +88,7 @@ public class SrsEncoder {
     }
 
     public boolean start() {
-        if (flvMuxer == null || mp4Muxer == null) {
+        if (flvMuxer == null && mp4Muxer == null) {
             return false;
         }
 
@@ -139,8 +139,8 @@ public class SrsEncoder {
         audioFormat.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 0);
         aencoder.configure(audioFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
         // add the audio tracker to muxer.
-        audioFlvTrack = flvMuxer.addTrack(audioFormat);
-        audioMp4Track = mp4Muxer.addTrack(audioFormat);
+        if(flvMuxer!=null) audioFlvTrack = flvMuxer.addTrack(audioFormat);
+        if(mp4Muxer!=null) audioMp4Track = mp4Muxer.addTrack(audioFormat);
 
         // vencoder yuv to 264 es stream.
         // requires sdk level 16+, Android 4.1, 4.1.1, the JELLY_BEAN
@@ -162,8 +162,8 @@ public class SrsEncoder {
         videoFormat.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, VGOP / VFPS);
         vencoder.configure(videoFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
         // add the video tracker to muxer.
-        videoFlvTrack = flvMuxer.addTrack(videoFormat);
-        videoMp4Track = mp4Muxer.addTrack(videoFormat);
+        if(flvMuxer!=null) videoFlvTrack = flvMuxer.addTrack(videoFormat);
+        if(mp4Muxer!=null) videoMp4Track = mp4Muxer.addTrack(videoFormat);
 
         // start device and encoder.
         vencoder.start();
@@ -332,14 +332,14 @@ public class SrsEncoder {
 
     // when got encoded h264 es stream.
     private void onEncodedAnnexbFrame(ByteBuffer es, MediaCodec.BufferInfo bi) {
-        mp4Muxer.writeSampleData(videoMp4Track, es.duplicate(), bi);
-        flvMuxer.writeSampleData(videoFlvTrack, es, bi);
+        if(mp4Muxer!=null) mp4Muxer.writeSampleData(videoMp4Track, es.duplicate(), bi);
+        if(flvMuxer!=null) flvMuxer.writeSampleData(videoFlvTrack, es, bi);
     }
 
     // when got encoded aac raw stream.
     private void onEncodedAacFrame(ByteBuffer es, MediaCodec.BufferInfo bi) {
-        mp4Muxer.writeSampleData(audioMp4Track, es.duplicate(), bi);
-        flvMuxer.writeSampleData(audioFlvTrack, es, bi);
+        if(mp4Muxer!=null) mp4Muxer.writeSampleData(audioMp4Track, es.duplicate(), bi);
+        if(flvMuxer!=null) flvMuxer.writeSampleData(audioFlvTrack, es, bi);
     }
 
     public void onGetPcmFrame(byte[] data, int size) {
@@ -370,8 +370,30 @@ public class SrsEncoder {
     public void onGetRgbaFrame(byte[] data, int width, int height) {
         // Check video frame cache number to judge the networking situation.
         // Just cache GOP / FPS seconds data according to latency.
-        AtomicInteger videoFrameCacheNumber = flvMuxer.getVideoFrameCacheNumber();
-        if (videoFrameCacheNumber != null && videoFrameCacheNumber.get() < VGOP) {
+        if(flvMuxer!=null) {
+            AtomicInteger videoFrameCacheNumber = flvMuxer.getVideoFrameCacheNumber();
+            if (videoFrameCacheNumber != null && videoFrameCacheNumber.get() < VGOP) {
+                long pts = System.nanoTime() / 1000 - mPresentTimeUs;
+                if (useSoftEncoder) {
+                    swRgbaFrame(data, width, height, pts);
+                } else {
+                    byte[] processedData = hwRgbaFrame(data, width, height);
+                    if (processedData != null) {
+                        onProcessedYuvFrame(processedData, pts);
+                    } else {
+                        mHandler.notifyEncodeIllegalArgumentException(new IllegalArgumentException("libyuv failure"));
+                    }
+                }
+
+                if (networkWeakTriggered) {
+                    networkWeakTriggered = false;
+                    mHandler.notifyNetworkResume();
+                }
+            } else {
+                mHandler.notifyNetworkWeak();
+                networkWeakTriggered = true;
+            }
+        }else {
             long pts = System.nanoTime() / 1000 - mPresentTimeUs;
             if (useSoftEncoder) {
                 swRgbaFrame(data, width, height, pts);
@@ -388,9 +410,6 @@ public class SrsEncoder {
                 networkWeakTriggered = false;
                 mHandler.notifyNetworkResume();
             }
-        } else {
-            mHandler.notifyNetworkWeak();
-            networkWeakTriggered = true;
         }
     }
 

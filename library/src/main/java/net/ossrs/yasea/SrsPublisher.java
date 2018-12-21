@@ -178,10 +178,12 @@ public class SrsPublisher {
     }
 
     public boolean startRecord(String recPath) {
+        startEncode();
         return mMp4Muxer != null && mMp4Muxer.record(new File(recPath));
     }
 
     public void stopRecord() {
+        stopEncode();
         if (mMp4Muxer != null) {
             mMp4Muxer.stop();
         }
