@@ -3,11 +3,8 @@ package test.com.livetest;
 import android.app.Activity;
 import android.content.res.Configuration;
 import android.hardware.Camera;
-import android.media.MediaRecorder;
 import android.os.Bundle;
 import android.os.Environment;
-import android.os.Handler;
-import android.os.Message;
 import android.support.annotation.Nullable;
 import android.text.TextUtils;
 import android.view.View;
@@ -16,17 +13,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
 
-import com.alibaba.sdk.android.oss.ClientConfiguration;
-import com.alibaba.sdk.android.oss.ClientException;
-import com.alibaba.sdk.android.oss.OSS;
-import com.alibaba.sdk.android.oss.OSSClient;
-import com.alibaba.sdk.android.oss.ServiceException;
-import com.alibaba.sdk.android.oss.common.auth.OSSCredentialProvider;
-import com.alibaba.sdk.android.oss.common.auth.OSSPlainTextAKSKCredentialProvider;
-import com.alibaba.sdk.android.oss.model.PutObjectRequest;
-import com.alibaba.sdk.android.oss.model.PutObjectResult;
 import com.github.faucamp.simplertmp.RtmpHandler;
-import com.seu.magicfilter.utils.MagicFilterType;
 
 import net.ossrs.yasea.SrsCameraView;
 import net.ossrs.yasea.SrsEncodeHandler;
@@ -37,13 +24,11 @@ import java.io.IOException;
 import java.net.SocketException;
 import java.util.List;
 
-import io.vov.vitamio.utils.Log;
-
 /**
  * Created by Sikang on 2017/5/2.
  */
 
-public class CameraActivity extends Activity implements SrsEncodeHandler.SrsEncodeListener, RtmpHandler.RtmpListener, SrsRecordHandler.SrsRecordListener, View.OnClickListener, MediaRecorder.OnInfoListener {
+public class CameraActivity extends Activity implements SrsEncodeHandler.SrsEncodeListener, RtmpHandler.RtmpListener, SrsRecordHandler.SrsRecordListener, View.OnClickListener {
     private static final String TAG = "CameraActivity";
 
     private Button mPublishBtn;
@@ -56,20 +41,6 @@ public class CameraActivity extends Activity implements SrsEncodeHandler.SrsEnco
     private String rtmpUrl;
     private String recPath = Environment.getExternalStorageDirectory().getPath() + "/test.mp4";
     private Camera mCamera;
-    private MediaRecorder mMediaRecorder;
-
-    private final int UPLOAD_FILE = 100002;
-
-    private Handler mHandler = new Handler() {
-        public void handleMessage(Message paramMessage) {
-            switch (paramMessage.what) {
-                case UPLOAD_FILE:
-                    Toast.makeText(getApplicationContext(), "Upload file now", Toast.LENGTH_SHORT).show();
-                    new Thread(runnableInit).start();
-                    break;
-            }
-        }
-    };
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -92,19 +63,13 @@ public class CameraActivity extends Activity implements SrsEncodeHandler.SrsEnco
         //编码状态回调
         mPublisher.setEncodeHandler(new SrsEncodeHandler(this));
         mPublisher.setRecordHandler(new SrsRecordHandler(this));
-        //rtmp推流状态回调
-        mPublisher.setRtmpHandler(new RtmpHandler(this));
         //预览分辨率
         mPublisher.setPreviewResolution(1280, 720);
         //推流分辨率
         mPublisher.setOutputResolution(1280, 720);
         //传输率
-//        mPublisher.setVideoHDMode();
         mPublisher.setVideoSmoothMode();
-        //开启美颜（其他滤镜效果在MagicFilterType中查看）
-//        mPublisher.switchCameraFilter(MagicFilterType.BEAUTY);
         //打开摄像头，开始预览（未推流）
-//        mPublisher.startCamera();
         mCameraView.setPreviewOrientation(0);
         mPublisher.startCamera();
 
@@ -125,8 +90,9 @@ public class CameraActivity extends Activity implements SrsEncodeHandler.SrsEnco
                     if (TextUtils.isEmpty(rtmpUrl)) {
                         Toast.makeText(getApplicationContext(), "地址不能为空！", Toast.LENGTH_SHORT).show();
                     }
+                    //rtmp推流状态回调
+                    mPublisher.setRtmpHandler(new RtmpHandler(this));
                     mPublisher.startPublish(rtmpUrl);
-//                    mPublisher.startCamera();
 
                     if (mEncoderBtn.getText().toString().contentEquals("软编码")) {
                         Toast.makeText(getApplicationContext(), "当前使用硬编码", Toast.LENGTH_SHORT).show();
@@ -145,11 +111,13 @@ public class CameraActivity extends Activity implements SrsEncodeHandler.SrsEnco
             //录制/结束
             case R.id.record:
                 if (mRecordBtn.getText().toString().contentEquals("录制")) {
-                    startRecordVideo();
+                    mPublisher.startRecord(recPath);
                     mRecordBtn.setText("结束");
+                    mEncoderBtn.setEnabled(false);
                 } else if (mRecordBtn.getText().toString().contentEquals("结束")) {
-                    stopRecordVideo();
+                    mPublisher.stopRecord();
                     mRecordBtn.setText("录制");
+                    mEncoderBtn.setEnabled(true);
                 }
                 break;
             //切换摄像头
@@ -180,7 +148,6 @@ public class CameraActivity extends Activity implements SrsEncodeHandler.SrsEnco
         super.onPause();
         mPublisher.pauseRecord();
         if (mRecordBtn.getText().toString().contentEquals("结束")) {
-            stopRecordVideo();
             mRecordBtn.setText("录制");
         }
     }
@@ -190,7 +157,6 @@ public class CameraActivity extends Activity implements SrsEncodeHandler.SrsEnco
         super.onDestroy();
         mPublisher.stopPublish();
         mPublisher.stopRecord();
-        stopRecordVideo();
     }
 
     @Override
@@ -314,6 +280,8 @@ public class CameraActivity extends Activity implements SrsEncodeHandler.SrsEnco
     @Override
     public void onRecordFinished(String msg) {
         Toast.makeText(getApplicationContext(), "MP4 file saved: " + msg, Toast.LENGTH_SHORT).show();
+        mPublisher.stopPublish();
+        mPublisher.startCamera();
     }
 
     @Override
@@ -324,108 +292,5 @@ public class CameraActivity extends Activity implements SrsEncodeHandler.SrsEnco
     @Override
     public void onRecordIllegalArgumentException(IllegalArgumentException e) {
         handleException(e);
-    }
-
-    @Override
-    public void onInfo(MediaRecorder mediaRecorder, int what, int extra) {
-        if (what == MediaRecorder.MEDIA_RECORDER_INFO_MAX_DURATION_REACHED) {
-            Toast.makeText(getApplicationContext(), "Maximum Filesize Reached", Toast.LENGTH_SHORT).show();
-            stopRecordVideo();
-        }
-    }
-
-    private void startRecordVideo() {
-        mCamera = mPublisher.getCamera();
-        configureMediaRecorder();
-        Toast.makeText(getApplicationContext(), "Recording file", Toast.LENGTH_SHORT).show();
-    }
-
-    private void stopRecordVideo() {
-        if (mMediaRecorder != null) {
-            mMediaRecorder.stop();
-            mMediaRecorder.reset();
-            mMediaRecorder.release();
-            mMediaRecorder = null;
-            Toast.makeText(getApplicationContext(), "MP4 file saved", Toast.LENGTH_SHORT).show();
-            mHandler.sendEmptyMessageDelayed(UPLOAD_FILE, 1000);
-        }
-    }
-
-    private void configureMediaRecorder() {
-        mMediaRecorder = new MediaRecorder();
-        mMediaRecorder.setOnInfoListener(this);
-        try {
-
-            // Step 1: Unlock and set camera to MediaRecorder
-            mCamera.unlock();
-            mMediaRecorder.setCamera(mCamera);
-
-            // Step 2: Set Sources
-            mMediaRecorder.setVideoSource(MediaRecorder.VideoSource.CAMERA);
-
-            // Step 3: Set a Camera Parameters
-            mMediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
-            /* Fixed video Size: 640 * 480 */
-            mMediaRecorder.setVideoSize(640, 480);
-            /* Video Frame Rate: 30*/
-            mMediaRecorder.setVideoFrameRate(30);
-            /* Encoding bit rate: 1 * 1024 * 1024 */
-            mMediaRecorder.setVideoEncodingBitRate(500 * 1024);
-            mMediaRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
-
-            // Step 4: Set output file
-            mMediaRecorder.setOutputFile(recPath);
-
-            // Set MediaRecorder Max Duration (ms)
-            mMediaRecorder.setMaxDuration(60 * 1000);
-            mMediaRecorder.prepare();
-            mMediaRecorder.start();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    Runnable runnableInit = new Runnable() {
-        @Override
-        public void run() {
-            OSSInit();
-        }
-    };
-
-    private void OSSInit() {
-        String endPoint = "http://oss-cn-shenzhen.aliyuncs.com";
-        String accessKeyId = "LTAIvIhIJ3JNzkRl";
-        String accessKeySecret = "7aZBMS42QqguHTF5cq5uPD7tle8dK3";
-
-        OSSCredentialProvider credentialProvider = new OSSPlainTextAKSKCredentialProvider(accessKeyId, accessKeySecret);
-        ClientConfiguration conf = new ClientConfiguration();
-        conf.setConnectionTimeout(15 * 1000);   // 连接超时，默认15秒
-        conf.setSocketTimeout(15 * 1000);   // socket超时，默认15秒
-        conf.setMaxConcurrentRequest(5);    // 最大并发请求数，默认5个
-        conf.setMaxErrorRetry(2);   // 失败后最大重试次数，默认2次
-        OSS oss = new OSSClient(getApplicationContext(), endPoint, credentialProvider, conf);
-        System.out.println("Upload File");
-        uploadFile(oss);
-    }
-
-    private void uploadFile(OSS oss) {
-        // 上传文件
-        Log.d("Upload", "Start");
-        PutObjectRequest put = new PutObjectRequest("gadsp", "datas/soft/file", recPath);
-        try {
-            PutObjectResult putObjectResult = oss.putObject(put);
-            Log.d("PutObject", "Upload Success");
-            Log.d("ETag", putObjectResult.getETag());
-            Log.d("RequestId", putObjectResult.getRequestId());
-        } catch (ClientException e) {
-            // 本地异常如网络异常等
-            e.printStackTrace();
-        } catch (ServiceException e) {
-            // 服务异常
-            Log.e("RequestId", e.getRequestId());
-            Log.e("ErrorCode", e.getErrorCode());
-            Log.e("HostId", e.getHostId());
-            Log.e("RawMessage", e.getRawMessage());
-        }
     }
 }

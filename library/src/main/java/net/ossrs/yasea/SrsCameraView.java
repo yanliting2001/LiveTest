@@ -337,26 +337,7 @@ public class SrsCameraView extends GLSurfaceView implements GLSurfaceView.Render
     private Camera openCamera() {
         Camera camera;
         if (mCamId < 0) {
-            Camera.CameraInfo info = new Camera.CameraInfo();
-            int numCameras = Camera.getNumberOfCameras();
-            int frontCamId = -1;
-            int backCamId = -1;
-            for (int i = 0; i < numCameras; i++) {
-                Camera.getCameraInfo(i, info);
-                if (info.facing == Camera.CameraInfo.CAMERA_FACING_BACK) {
-                    backCamId = i;
-                } else if (info.facing == Camera.CameraInfo.CAMERA_FACING_FRONT) {
-                    frontCamId = i;
-                    break;
-                }
-            }
-            if (frontCamId != -1) {
-                mCamId = frontCamId;
-            } else if (backCamId != -1) {
-                mCamId = backCamId;
-            } else {
-                mCamId = 0;
-            }
+            mCamId = 0;
         }
         camera = Camera.open(mCamId);
         return camera;
