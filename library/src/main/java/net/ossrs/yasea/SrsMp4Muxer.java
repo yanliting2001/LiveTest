@@ -134,7 +134,9 @@ public class SrsMp4Muxer {
                     // Keep at least one audio and video frame in cache to ensure monotonically increasing.
                     while (!frameCache.isEmpty()) {
                         SrsEsFrame frame = frameCache.poll();
-                        writeSampleData(frame.bb, frame.bi, frame.is_audio());
+                        if (frame != null) {
+                            writeSampleData(frame.bb, frame.bi, frame.is_audio());
+                        }
                     }
                     // Waiting for next frame
                     synchronized (writeLock) {
