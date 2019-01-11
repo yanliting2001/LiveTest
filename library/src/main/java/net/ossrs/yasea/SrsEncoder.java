@@ -62,6 +62,10 @@ public class SrsEncoder {
     private int videoMp4Track;
     private int audioFlvTrack;
     private int audioMp4Track;
+    private boolean isPaused = false;
+    private long mPauseStartTimeUs = 0;
+    private long mPauseResumeTimeUs = 0;
+    private long mPauseTimeUs = 0;
 
     // Y, U (Cb) and V (Cr)
     // yuv420                     yuv yuv yuv yuv
@@ -91,6 +95,7 @@ public class SrsEncoder {
         if (flvMuxer == null && mp4Muxer == null) {
             return false;
         }
+        isPaused = false;
 
         // the referent PTS for video and audio encoder.
         mPresentTimeUs = System.nanoTime() / 1000;
@@ -186,10 +191,22 @@ public class SrsEncoder {
 
         if (vencoder != null) {
             Log.i(TAG, "stop vencoder");
-//            vencoder.stop();
-//            vencoder.release();
-//            vencoder = null;
+            vencoder.stop();
+            vencoder.release();
+            vencoder = null;
         }
+        mPauseTimeUs = 0;
+    }
+
+    public void pause(){
+        isPaused = true;
+        mPauseStartTimeUs = System.nanoTime() / 1000;
+    }
+    public void resume() {
+        isPaused = false;
+        mPauseResumeTimeUs = System.nanoTime() / 1000;
+
+        mPauseTimeUs += mPauseResumeTimeUs - mPauseStartTimeUs;
     }
 
     public void setCameraFrontFace() {
@@ -351,7 +368,7 @@ public class SrsEncoder {
             ByteBuffer bb = inBuffers[inBufferIndex];
             bb.clear();
             bb.put(data, 0, size);
-            long pts = System.nanoTime() / 1000 - mPresentTimeUs;
+            long pts = System.nanoTime() / 1000 - mPresentTimeUs-mPauseTimeUs;
             aencoder.queueInputBuffer(inBufferIndex, 0, size, pts, 0);
         }
 
@@ -370,10 +387,12 @@ public class SrsEncoder {
     public void onGetRgbaFrame(byte[] data, int width, int height) {
         // Check video frame cache number to judge the networking situation.
         // Just cache GOP / FPS seconds data according to latency.
+        if(isPaused) return;
         if(flvMuxer!=null) {
             AtomicInteger videoFrameCacheNumber = flvMuxer.getVideoFrameCacheNumber();
             if (videoFrameCacheNumber != null && videoFrameCacheNumber.get() < VGOP) {
-                long pts = System.nanoTime() / 1000 - mPresentTimeUs;
+                long nantoTime = System.nanoTime() / 1000;
+                long pts = nantoTime - mPresentTimeUs-mPauseTimeUs;
                 if (useSoftEncoder) {
                     swRgbaFrame(data, width, height, pts);
                 } else {
@@ -394,7 +413,8 @@ public class SrsEncoder {
                 networkWeakTriggered = true;
             }
         }else {
-            long pts = System.nanoTime() / 1000 - mPresentTimeUs;
+            long nantoTime = System.nanoTime() / 1000;
+            long pts = nantoTime - mPresentTimeUs-mPauseTimeUs;
             if (useSoftEncoder) {
                 swRgbaFrame(data, width, height, pts);
             } else {

@@ -153,11 +153,11 @@ public class SrsPublisher {
 
         mCameraView.enableEncoding();
 
-        startAudio();
+        //startAudio();
     }
 
     public void stopEncode() {
-        stopAudio();
+        //stopAudio();
         stopCamera();
         mEncoder.stop();
     }
@@ -190,12 +190,14 @@ public class SrsPublisher {
     }
 
     public void pauseRecord() {
+        mEncoder.pause();
         if (mMp4Muxer != null) {
             mMp4Muxer.pause();
         }
     }
 
     public void resumeRecord() {
+        mEncoder.resume();
         if (mMp4Muxer != null) {
             mMp4Muxer.resume();
         }
